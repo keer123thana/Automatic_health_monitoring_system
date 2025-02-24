@@ -1,0 +1,335 @@
+1. all_sm_bluetooth
+
+#include <Wire.h>
+#include "MAX30100_PulseOximeter.h"
+#include <BluetoothSerial.h> // Include the BluetoothSerial library
+#include <WiFi.h> // Include the WiFi library
+
+#define REPORTING_PERIOD_MS 1000
+
+float BPM, SpO2;
+float temperature;
+
+// Define I2C pins for ESP-W300
+#define I2C_SCL 21
+#define I2C_SDA 22
+
+PulseOximeter pox;
+uint32_t tsLastReport = 0;
+
+const int sensorPin = 2; // Connect to D2 or any other digital pin
+
+BluetoothSerial SerialBT; // Create a BluetoothSerial object
+
+const char* ssid = "YourWiFiSSID"; // Change to your WiFi SSID
+const char* password = "YourWiFiPassword"; // Change to your WiFi password
+
+WiFiServer server(80);
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(I2C_SDA, I2C_SCL);
+
+  if (!pox.begin()) {
+    Serial.println("Pulse oximeter initialization FAILED");
+    for (;;);
+  } else {
+    Serial.println("Pulse oximeter initialization SUCCESS");
+  }
+
+  SerialBT.begin(); // Initialize Bluetooth
+
+  // Connect to WiFi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+
+  server.begin();
+}
+
+void loop() {
+  pox.update();
+
+  if (millis() - tsLastReport > REPORTING_PERIOD_MS) {
+    BPM = pox.getHeartRate();
+    SpO2 = pox.getSpO2();
+
+    int sensorValue = analogRead(sensorPin);
+    // Convert sensorValue to temperature (check sensor datasheet)
+    temperature = map(sensorValue, 0, 1023, -40, 125); // Example mapping
+
+    // Print to Serial Monitor
+    Serial.print("BPM: ");
+    Serial.println(BPM);
+    Serial.print("SpO2: ");
+    Serial.print(SpO2);
+    Serial.println("%");
+    Serial.print("Temperature: ");
+    Serial.print(temperature);
+    Serial.println(" °C");
+
+    // Send data over Bluetooth
+    SerialBT.print("BPM: ");
+    SerialBT.println(BPM);
+    SerialBT.print("SpO2: ");
+    SerialBT.print(SpO2);
+    SerialBT.println("%");
+    SerialBT.print("Temperature: ");
+    SerialBT.print(temperature);
+    SerialBT.println(" °C");
+
+    // Create HTML response
+    String html = "<html><body>";
+    html += "<h1>Health Monitoring System</h1>";
+    html += "<p>BPM: " + String(BPM) + "</p>";
+    html += "<p>SpO2: " + String(SpO2) + "%</p>";
+    html += "<p>Temperature: " + String(temperature) + " °C</p>";
+    html += "</body></html>";
+
+    WiFiClient client = server.available();
+    if (client) {
+      client.println("HTTP/1.1 200 OK");
+      client.println("Content-Type: text/html");
+      client.println();
+      client.print(html);
+      client.stop();
+    }
+
+    Serial.println("*********************************");
+    Serial.println();
+
+    tsLastReport = millis();
+  }
+}
+----------------------------------------
+2.all_sm
+
+#include <Wire.h>
+#include "MAX30100_PulseOximeter.h"
+
+#define REPORTING_PERIOD_MS 1000
+
+float BPM, SpO2;
+float temperature;
+
+// Define I2C pins for ESP-W300
+#define I2C_SCL 21
+#define I2C_SDA 22
+
+PulseOximeter pox;
+uint32_t tsLastReport = 0;
+
+const int sensorPin = 2; // Connect to D2 or any other digital pin
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(I2C_SDA, I2C_SCL);
+
+  Serial.print("Initializing pulse oximeter..");
+  if (!pox.begin()) {
+    Serial.println("FAILED");
+    for (;;);
+  } else {
+    Serial.println("SUCCESS");
+  }
+}
+
+void loop() {
+  pox.update();
+
+  if (millis() - tsLastReport > REPORTING_PERIOD_MS) {
+    BPM = pox.getHeartRate();
+    SpO2 = pox.getSpO2();
+
+    int sensorValue = analogRead(sensorPin);
+    // Convert sensorValue to temperature (check sensor datasheet)
+    temperature = map(sensorValue, 0, 1023, -40, 125); // Example mapping
+
+    Serial.print("BPM: ");
+    Serial.println(BPM);
+
+    Serial.print("SpO2: ");
+    Serial.print(SpO2);
+    Serial.println("%");
+
+    Serial.print("Temperature: ");
+    Serial.print(temperature);
+    Serial.println(" °C");
+
+    // Send data over Bluetooth (you'll need to set up Bluetooth module)
+    // Example: SerialBT.print("BPM: "); SerialBT.println(BPM);
+
+    Serial.println("*********************************");
+    Serial.println();
+
+    tsLastReport = millis();
+  }
+}
+--------------------------------------
+3. temp_max_bt
+
+#include <Wire.h>
+#include "MAX30100_PulseOximeter.h"
+
+#define REPORTING_PERIOD_MS 1000
+
+float BPM, SpO2;
+
+// Define I2C pins for ESP-W300
+#define I2C_SCL 21
+#define I2C_SDA 22
+
+PulseOximeter pox;
+uint32_t tsLastReport = 0;
+
+void setup() {
+  Serial.begin(115200);
+
+  // Initialize I2C communication
+  Wire.begin(I2C_SDA, I2C_SCL);
+
+  Serial.print("Initializing pulse oximeter..");
+
+  if (!pox.begin()) {
+    Serial.println("FAILED");
+    for (;;);
+  } else {
+    Serial.println("SUCCESS");
+  }
+}
+
+void loop() {
+  pox.update();
+
+  if (millis() - tsLastReport > REPORTING_PERIOD_MS) {
+    BPM = pox.getHeartRate();
+    SpO2 = pox.getSpO2();
+
+    Serial.print("BPM: ");
+    Serial.println(BPM);
+
+    Serial.print("SpO2: ");
+    Serial.print(SpO2);
+    Serial.println("%");
+
+    Serial.println("*********************************");
+    Serial.println();
+
+    tsLastReport = millis();
+  }
+}
+
+
+  ------------------------------------------
+4. temp_bt
+
+#include <BluetoothSerial.h>
+
+const int sensorPin = 2; // Connect to D2 or any other digital pin
+float temperature;
+
+BluetoothSerial SerialBT; // Create a BluetoothSerial object
+
+void setup() {
+    Serial.begin(9600);
+    SerialBT.begin("ESP32test"); // Set Bluetooth device name
+    Serial.println("The device started. You can pair it with Bluetooth!");
+}
+
+void loop() {
+    int sensorValue = analogRead(sensorPin);
+    // Convert sensorValue to temperature (check sensor datasheet)
+    temperature = map(sensorValue, 0, 1023, -40, 125); // Example mapping
+
+    // Display temperature on serial monitor
+    Serial.print("Temperature: ");
+    Serial.print(temperature);
+    Serial.println(" °C");
+
+    // Send temperature to mobile Bluetooth app
+    SerialBT.print("Temperature: ");
+    SerialBT.print(temperature);
+    SerialBT.println(" °C");
+
+    delay(1000); // Delay for stability
+}
+
+-----------------------------------------
+5. all_bt_sm_final
+
+#include <Wire.h>
+#include "MAX30100_PulseOximeter.h"
+#include <BluetoothSerial.h> // Include the BluetoothSerial library
+
+#define REPORTING_PERIOD_MS 1000
+
+float BPM, SpO2;
+float temperature;
+
+// Define I2C pins for ESP-W300
+#define I2C_SCL 21
+#define I2C_SDA 22
+
+PulseOximeter pox;
+uint32_t tsLastReport = 0;
+
+const int sensorPin = 2; // Connect to D2 or any other digital pin
+
+BluetoothSerial SerialBT; // Create a BluetoothSerial object
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(I2C_SDA, I2C_SCL);
+
+  if (!pox.begin()) {
+    Serial.println("Pulse oximeter initialization FAILED");
+    for (;;);
+  } else {
+    Serial.println("Pulse oximeter initialization SUCCESS");
+  }
+
+  SerialBT.begin(); // Initialize Bluetooth
+}
+
+void loop() {
+  pox.update();
+
+  if (millis() - tsLastReport > REPORTING_PERIOD_MS) {
+    BPM = pox.getHeartRate();
+    SpO2 = pox.getSpO2();
+
+    int sensorValue = analogRead(sensorPin);
+    // Convert sensorValue to temperature (check sensor datasheet)
+    temperature = map(sensorValue, 0, 1023, -40, 125); // Example mapping
+
+    // Print to Serial Monitor
+    Serial.print("BPM: ");
+    Serial.println(BPM);
+    Serial.print("SpO2: ");
+    Serial.print(SpO2);
+    Serial.println("%");
+    Serial.print("Temperature: ");
+    Serial.print(temperature);
+    Serial.println(" °C");
+
+    // Send data over Bluetooth
+    SerialBT.print("BPM: ");
+    SerialBT.println(BPM);
+    SerialBT.print("SpO2: ");
+    SerialBT.print(SpO2);
+    SerialBT.println("%");
+    SerialBT.print("Temperature: ");
+    SerialBT.print(temperature);
+    SerialBT.println(" °C");
+
+    Serial.println("*********************************");
+    Serial.println();
+
+    tsLastReport = millis();
+  }
+}
+
+-----------------------
